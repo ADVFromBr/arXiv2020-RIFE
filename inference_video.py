@@ -10,10 +10,21 @@ import _thread
 import skvideo.io
 from queue import Queue, Empty
 from benchmark.pytorch_msssim import ssim_matlab
+import tkinter as tk
+from tkinter import filedialog, Text
+
+
+
+
 
 warnings.filterwarnings("ignore")
 
-def transferAudio(sourceVideo, targetVideo):
+
+class createVideo(object):
+
+
+ def __init__(self, videoF):
+  def transferAudio(sourceVideo, targetVideo):
     import shutil
     import moviepy.editor
     tempAudioFileName = "./temp/audio.mkv"
@@ -53,50 +64,52 @@ def transferAudio(sourceVideo, targetVideo):
     # remove temp directory
     shutil.rmtree("temp")
 
-parser = argparse.ArgumentParser(description='Interpolation for a pair of images')
-parser.add_argument('--video', dest='video', type=str, default=None)
-parser.add_argument('--output', dest='output', type=str, default=None)
-parser.add_argument('--img', dest='img', type=str, default=None)
-parser.add_argument('--montage', dest='montage', action='store_true', help='montage origin video')
-parser.add_argument('--model', dest='modelDir', type=str, default='train_log', help='directory with trained model files')
-parser.add_argument('--fp16', dest='fp16', action='store_true', help='fp16 mode for faster and more lightweight inference on cards with Tensor Cores')
-parser.add_argument('--UHD', dest='UHD', action='store_true', help='support 4k video')
-parser.add_argument('--scale', dest='scale', type=float, default=1.0, help='Try scale=0.5 for 4k video')
-parser.add_argument('--skip', dest='skip', action='store_true', help='whether to remove static frames before processing')
-parser.add_argument('--fps', dest='fps', type=int, default=None)
-parser.add_argument('--png', dest='png', action='store_true', help='whether to vid_out png format vid_outs')
-parser.add_argument('--ext', dest='ext', type=str, default='mp4', help='vid_out video extension')
-parser.add_argument('--exp', dest='exp', type=int, default=1)
-args = parser.parse_args()
-assert (not args.video is None or not args.img is None)
-if args.UHD and args.scale==1.0:
+  parser = argparse.ArgumentParser(description='Interpolation for a pair of images')
+  parser.add_argument('--video', dest='video', type=str, default=None)
+  parser.add_argument('--output', dest='output', type=str, default=None)
+  parser.add_argument('--img', dest='img', type=str, default=None)
+  parser.add_argument('--montage', dest='montage', action='store_true', help='montage origin video')
+  parser.add_argument('--model', dest='modelDir', type=str, default='train_log', help='directory with trained model files')
+  parser.add_argument('--fp16', dest='fp16', action='store_true', help='fp16 mode for faster and more lightweight inference on cards with Tensor Cores')
+  parser.add_argument('--UHD', dest='UHD', action='store_true', help='support 4k video')
+  parser.add_argument('--scale', dest='scale', type=float, default=1.0, help='Try scale=0.5 for 4k video')
+  parser.add_argument('--skip', dest='skip', action='store_true', help='whether to remove static frames before processing')
+  parser.add_argument('--fps', dest='fps', type=int, default=None)
+  parser.add_argument('--png', dest='png', action='store_true', help='whether to vid_out png format vid_outs')
+  parser.add_argument('--ext', dest='ext', type=str, default='mp4', help='vid_out video extension')
+  parser.add_argument('--exp', dest='exp', type=int, default=1)
+  args = parser.parse_args()
+  args.video = videoF
+  args.exp=1
+  assert (not args.video is None or not args.img is None)
+  if args.UHD and args.scale==1.0:
     args.scale = 0.5
-assert args.scale in [0.25, 0.5, 1.0, 2.0, 4.0]
-if not args.img is None:
+  assert args.scale in [0.25, 0.5, 1.0, 2.0, 4.0]
+  if not args.img is None:
     args.png = True
     
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.set_grad_enabled(False)
-if torch.cuda.is_available():
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  torch.set_grad_enabled(False)
+  if torch.cuda.is_available():
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True
     if(args.fp16):
         torch.set_default_tensor_type(torch.cuda.HalfTensor)
 
-try:
+  try:
     from model.RIFE_HDv2 import Model
     model = Model()
     model.load_model(args.modelDir, -1)
     print("Loaded v2.x HD model.")
-except:
+  except:
     from model.RIFE_HD import Model
     model = Model()
     model.load_model(args.modelDir, -1)
     print("Loaded v1.x HD model")
-model.eval()
-model.device()
+  model.eval()
+  model.device()
 
-if not args.video is None:
+  if not args.video is None:
     videoCapture = cv2.VideoCapture(args.video)
     fps = videoCapture.get(cv2.CAP_PROP_FPS)
     tot_frame = videoCapture.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -115,7 +128,7 @@ if not args.video is None:
         print("The audio will be merged after interpolation process")
     else:
         print("Will not merge audio because using png, fps or skip flag!")
-else:
+  else:
     videogen = []
     for f in os.listdir(args.img):
         if 'png' in f:
@@ -124,20 +137,20 @@ else:
     videogen.sort(key= lambda x:int(x[:-4]))
     lastframe = cv2.imread(os.path.join(args.img, videogen[0]))[:, :, ::-1].copy()
     videogen = videogen[1:]
-h, w, _ = lastframe.shape
-vid_out_name = None
-vid_out = None
-if args.png:
+  h, w, _ = lastframe.shape
+  vid_out_name = None
+  vid_out = None
+  if args.png:
     if not os.path.exists('vid_out'):
         os.mkdir('vid_out')
-else:
+  else:
     if args.output is not None:
         vid_out_name = args.output
     else:
         vid_out_name = '{}_{}X_{}fps.{}'.format(video_path_wo_ext, (2 ** args.exp), int(np.round(args.fps)), args.ext)
     vid_out = cv2.VideoWriter(vid_out_name, fourcc, args.fps, (w, h))
     
-def clear_write_buffer(user_args, write_buffer):
+  def clear_write_buffer(user_args, write_buffer):
     cnt = 0
     while True:
         item = write_buffer.get()
@@ -149,7 +162,7 @@ def clear_write_buffer(user_args, write_buffer):
         else:
             vid_out.write(item[:, :, ::-1])
 
-def build_read_buffer(user_args, read_buffer, videogen):
+  def build_read_buffer(user_args, read_buffer, videogen):
     try:
         for frame in videogen:
              if not user_args.img is None:
@@ -161,8 +174,8 @@ def build_read_buffer(user_args, read_buffer, videogen):
         pass
     read_buffer.put(None)
 
-def make_inference(I0, I1, exp):
-    global model
+  def make_inference(I0, I1, exp):
+  
     middle = model.inference(I0, I1, args.scale)
     if exp == 1:
         return [middle]
@@ -170,31 +183,31 @@ def make_inference(I0, I1, exp):
     second_half = make_inference(middle, I1, exp=exp - 1)
     return [*first_half, middle, *second_half]
     
-def pad_image(img):
+  def pad_image(img):
     if(args.fp16):
         return F.pad(img, padding).half()
     else:
         return F.pad(img, padding)
 
-if args.montage:
+  if args.montage:
     left = w // 4
     w = w // 2
-tmp = max(32, int(32 / args.scale))
-ph = ((h - 1) // tmp + 1) * tmp
-pw = ((w - 1) // tmp + 1) * tmp
-padding = (0, pw - w, 0, ph - h)
-pbar = tqdm(total=tot_frame)
-skip_frame = 1
-if args.montage:
+  tmp = max(32, int(32 / args.scale))
+  ph = ((h - 1) // tmp + 1) * tmp
+  pw = ((w - 1) // tmp + 1) * tmp
+  padding = (0, pw - w, 0, ph - h)
+  pbar = tqdm(total=tot_frame)
+  skip_frame = 1
+  if args.montage:
     lastframe = lastframe[:, left: left + w]
-write_buffer = Queue(maxsize=500)
-read_buffer = Queue(maxsize=500)
-_thread.start_new_thread(build_read_buffer, (args, read_buffer, videogen))
-_thread.start_new_thread(clear_write_buffer, (args, write_buffer))
+  write_buffer = Queue(maxsize=500)
+  read_buffer = Queue(maxsize=500)
+  _thread.start_new_thread(build_read_buffer, (args, read_buffer, videogen))
+  _thread.start_new_thread(clear_write_buffer, (args, write_buffer))
 
-I1 = torch.from_numpy(np.transpose(lastframe, (2,0,1))).to(device, non_blocking=True).unsqueeze(0).float() / 255.
-I1 = pad_image(I1)
-while True:
+  I1 = torch.from_numpy(np.transpose(lastframe, (2,0,1))).to(device, non_blocking=True).unsqueeze(0).float() / 255.
+  I1 = pad_image(I1)
+  while True:
     frame = read_buffer.get()
     if frame is None:
         break
@@ -232,22 +245,49 @@ while True:
             write_buffer.put(mid[:h, :w])
     pbar.update(1)
     lastframe = frame
-if args.montage:
+  if args.montage:
     write_buffer.put(np.concatenate((lastframe, lastframe), 1))
-else:
+  else:
     write_buffer.put(lastframe)
-import time
-while(not write_buffer.empty()):
+  import time
+  while(not write_buffer.empty()):
     time.sleep(0.1)
-pbar.close()
-if not vid_out is None:
+  pbar.close()
+  if not vid_out is None:
     vid_out.release()
 
 # move audio to new video file if appropriate
-if args.png == False and fpsNotAssigned == True and not args.skip and not args.video is None:
+  if args.png == False and fpsNotAssigned == True and not args.skip and not args.video is None:
     try:
         transferAudio(args.video, vid_out_name)
     except:
         print("Audio transfer failed. Interpolated video will have no audio")
         targetNoAudio = os.path.splitext(vid_out_name)[0] + "_noaudio" + os.path.splitext(vid_out_name)[1]
         os.rename(targetNoAudio, vid_out_name)
+
+
+
+class tinkMenu:
+
+ root = tk.Tk()
+
+ def addApp():
+     filename = filedialog.askopenfilename(initialdir="/",title="Select File", 
+                                          filetypes=(("video","*.mp4"),("all fyles","*.*")))
+
+     newVid = createVideo(filename)
+
+    
+   
+ canvas = tk.Canvas(root, height=400, width=400, bg="#263D42")
+ canvas.pack()
+
+ frame = tk.Frame(root,bg="white")
+ frame.place(relwidth=0.8, relheight=0.8, relx=0.1, rely=0.1)
+
+ openFile = tk.Button(root,text="Open File", padx=10,
+                    pady=5, fg ="white", bg="#263D42",command=addApp)
+ openFile.pack()
+
+
+ root.mainloop()
